@@ -41,6 +41,10 @@ temp/
 # OS files
 .DS_Store
 
+docs/
+Images/
+
+
 # Image outputs (optional)
 outputs/
 **/outputs/
