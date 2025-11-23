@@ -5,16 +5,19 @@ from tkinter import ttk
 from PIL import Image, ImageTk
 import numpy as np
 
-# Import các module xử lý (đảm bảo bạn đã có các file này cùng thư mục)
+# Import các module xử lý
 import transformations as trans
 import filters as ftr
 import histogram as hist
+# Đảm bảo bạn đã tạo file frequency.py cùng thư mục
+import frequency as freq  
 
 class ImageApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Ứng dụng xử lý ảnh - Digital Image Processing")
-        self.root.geometry("1450x780") # Tăng chiều cao cửa sổ lên chút cho thoải mái
+        self.root.title("Ứng dụng xử lý ảnh - Digital Image Processing (Week 2 & 3)")
+        # 1. Tăng chiều rộng cửa sổ để chứa thanh điều khiển to hơn
+        self.root.geometry("1780x850") 
         self.root.configure(bg="#e0e0e0")
 
         # --- Biến lưu ảnh ---
@@ -23,13 +26,13 @@ class ImageApp:
 
         # --- Khu vực hiển thị ảnh (Trái / Phải) ---
         self.left_label = tk.Label(self.root, bg="#ccc", text="Ảnh gốc")
-        self.left_label.place(x=50, y=50, width=480, height=480)
+        self.left_label.place(x=30, y=30, width=500, height=500)
 
         self.right_label = tk.Label(self.root, bg="#ccc", text="Ảnh sau xử lý")
-        self.right_label.place(x=580, y=50, width=480, height=480)
+        self.right_label.place(x=560, y=30, width=500, height=500)
 
         # --- Menu chọn phép biến đổi ---
-        tk.Label(self.root, text="Chọn loại biến đổi", bg="#e0e0e0", font=("Arial", 11, "bold")).place(x=1100, y=20)
+        tk.Label(self.root, text="Chọn loại biến đổi", bg="#e0e0e0", font=("Arial", 11, "bold")).place(x=1080, y=20)
         self.method_var = tk.StringVar(value="Negative image")
         self.method_box = ttk.Combobox(
             self.root,
@@ -43,215 +46,230 @@ class ImageApp:
                 "Làm trơn ảnh (lọc Gauss)",
                 "Làm trơn ảnh (lọc trung vị)",
                 "Cân bằng sáng dùng Histogram",
-                "Phát hiện biên (Sobel)",      # High-pass
-                "Phát hiện biên (Laplacian)"   # High-pass
+                "Phát hiện biên (Sobel)",      
+                "Phát hiện biên (Laplacian)",
+                "--- MIỀN TẦN SỐ (HW3) ---",
+                "Lọc Ideal Lowpass (Làm mờ)",
+                "Lọc Ideal Highpass (Làm nét)",
+                "Lọc Butterworth Lowpass",
+                "Lọc Butterworth Highpass",
+                "Lọc Gaussian Lowpass",
+                "Lọc Gaussian Highpass"
             ],
             state="readonly",
             width=35,
         )
-        self.method_box.place(x=1100, y=45)
-        # Tự động cập nhật khi chọn menu khác
+        self.method_box.place(x=1080, y=45)
         self.method_box.bind("<<ComboboxSelected>>", lambda e: self.update_image())
 
         # --- Khung công cụ bên phải (CÓ THANH CUỘN) ---
-        # 1. Tạo Frame chứa chính (Container) - Tăng width và height
+        # 2. Mở rộng chiều rộng khung chứa lên 650 để chia 2 cột
         self.right_container = tk.Frame(self.root, bg="#f8f8f8", relief="ridge", bd=3)
-        self.right_container.place(x=1100, y=90, width=330, height=630)
+        self.right_container.place(x=1080, y=90, width=680, height=720) # Tăng width lên 680
 
-        # 2. Tạo Canvas và Scrollbar
         self.canvas = tk.Canvas(self.right_container, bg="#f8f8f8", highlightthickness=0)
         self.scrollbar = tk.Scrollbar(self.right_container, orient="vertical", command=self.canvas.yview)
-        
-        # 3. Frame nội dung bên trong Canvas
         self.scrollable_frame = tk.Frame(self.canvas, bg="#f8f8f8")
 
-        # 4. Cấu hình sự kiện cuộn
         self.scrollable_frame.bind(
             "<Configure>",
             lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         )
 
-        # Tạo window bên trong canvas
         self.canvas_frame = self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
-
-        # Link scrollbar với canvas
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
 
-        # 5. Pack lên giao diện
         self.canvas.pack(side="left", fill="both", expand=True)
         self.scrollbar.pack(side="right", fill="y")
 
-        # Tiêu đề trong frame cuộn
-        tk.Label(self.scrollable_frame, text="Công cụ biến đổi (Tham số)", bg="#f8f8f8", font=("Arial", 11, "bold")).pack(pady=10)
-
-        # --- Tạo các thanh trượt vào trong scrollable_frame ---
+        # Tạo các thanh trượt và nút bấm
         self.create_sliders(self.scrollable_frame)
 
-        # --- QUAN TRỌNG: Cập nhật lại vùng cuộn sau khi thêm widget ---
-        self.scrollable_frame.update_idletasks()
-        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        # --- Các nút điều khiển chính (Phía dưới ảnh) ---
+        tk.Button(self.root, text="Chọn ảnh", command=self.open_image, font=("Arial", 10, "bold"), bg="#ddd").place(x=30, y=550, width=120, height=40)
+        tk.Button(self.root, text="Cập nhật", command=self.update_image, font=("Arial", 10, "bold"), bg="#87CEEB").place(x=180, y=550, width=120, height=40)
+        tk.Button(self.root, text="Lưu ra file", command=self.save_image, font=("Arial", 10, "bold"), bg="#90EE90").place(x=330, y=550, width=120, height=40)
 
-        # --- Các nút điều khiển (Phía dưới ảnh gốc) ---
-        # Dời xuống y=580 để không bị sát quá
-        tk.Button(self.root, text="Chọn ảnh", command=self.open_image, font=("Arial", 10, "bold"), bg="#ddd").place(x=50, y=580, width=120, height=40)
-        tk.Button(self.root, text="Cập nhật", command=self.update_image, font=("Arial", 10, "bold"), bg="#87CEEB").place(x=200, y=580, width=120, height=40)
-        tk.Button(self.root, text="Lưu ra file", command=self.save_image, font=("Arial", 10, "bold"), bg="#90EE90").place(x=350, y=580, width=120, height=40)
-
-    # ---------- Tạo nhóm slider ----------
+    # ---------- Tạo nhóm slider & Buttons ----------
     def create_sliders(self, parent):
         self.params = {}
         
-        # Helper function để vẽ slider gọn gàng
-        def add_slider(frame_parent, text, from_, to, init, step=0.1):
+        # 3. TẠO 2 CỘT (FRAMES) ĐỂ CHIA BỐ CỤC
+        col1 = tk.Frame(parent, bg=parent["bg"]) # Cột trái (Tuần 2)
+        col1.pack(side="left", fill="both", expand=True, padx=5, anchor="n")
+        
+        col2 = tk.Frame(parent, bg=parent["bg"]) # Cột phải (Tuần 3)
+        col2.pack(side="left", fill="both", expand=True, padx=5, anchor="n")
+
+        def add_slider(frame_parent, text, from_, to, init, step=1):
             frame = tk.Frame(frame_parent, bg=frame_parent["bg"])
             frame.pack(pady=2, fill="x")
             tk.Label(frame, text=text, bg=frame_parent["bg"], anchor="w", font=("Arial", 9)).pack(padx=5)
             var = tk.DoubleVar(value=init)
-            tk.Scale(frame, from_=from_, to=to, orient="horizontal", resolution=step, length=260, variable=var,
-                     bg=frame_parent["bg"], troughcolor="#cfcfcf", width=12).pack(padx=5)
+            tk.Scale(frame, from_=from_, to=to, orient="horizontal", resolution=step, length=280, variable=var,
+                     bg=frame_parent["bg"], troughcolor="#cfcfcf").pack(padx=5)
             self.params[text] = var
 
-        # Log
-        section1 = tk.LabelFrame(parent, text="Biến đổi Log", bg="#C2E0F2", font=("Arial", 9, "bold"))
-        section1.pack(fill="x", padx=5, pady=5)
-        add_slider(section1, "Hệ số C (Log)", 1, 100, 40, step=1)
+        # === CỘT 1: CÁC BÀI TẬP TUẦN 2 ===
+        #tk.Label(col1, text="--- TUẦN 2 (SPATIAL) ---", bg="#f8f8f8", fg="blue", font=("Arial", 10, "bold")).pack(pady=5)
 
-        # Piecewise
-        section2 = tk.LabelFrame(parent, text="Biến đổi Piecewise-Linear", bg="#E6B8F2", font=("Arial", 9, "bold"))
-        section2.pack(fill="x", padx=5, pady=5)
-        add_slider(section2, "Hệ số Cao (r2)", 0, 255, 140, step=1)
-        add_slider(section2, "Hệ số Thấp (r1)", 0, 255, 70, step=1)
+        s1 = tk.LabelFrame(col1, text="Biến đổi mức xám", bg="#C2E0F2", font=("Arial", 9, "bold"))
+        s1.pack(fill="x", padx=5, pady=5)
+        add_slider(s1, "Hệ số C (Log)", 1, 100, 40)
+        add_slider(s1, "Gamma", 0.1, 5.0, 1.0, step=0.1)
 
-        # Gamma
-        section3 = tk.LabelFrame(parent, text="Biến đổi Gamma", bg="#F7CAAC", font=("Arial", 9, "bold"))
-        section3.pack(fill="x", padx=5, pady=5)
-        add_slider(section3, "Gamma", 0.1, 5.0, 1.0)
+        s2 = tk.LabelFrame(col1, text="Piecewise Linear", bg="#E6B8F2", font=("Arial", 9, "bold"))
+        s2.pack(fill="x", padx=5, pady=5)
+        add_slider(s2, "Hệ số Cao (r2)", 0, 255, 140)
+        add_slider(s2, "Hệ số Thấp (r1)", 0, 255, 70)
 
-        # Mean
-        section4 = tk.LabelFrame(parent, text="Làm trơn ảnh (lọc trung bình)", bg="#F2C2D4", font=("Arial", 9, "bold"))
-        section4.pack(fill="x", padx=5, pady=5)
-        add_slider(section4, "Kích thước lọc (Mean)", 1, 15, 3, step=2)
+        s3 = tk.LabelFrame(col1, text="Lọc Không Gian (Spatial)", bg="#F7CAAC", font=("Arial", 9, "bold"))
+        s3.pack(fill="x", padx=5, pady=5)
+        add_slider(s3, "Kích thước lọc (Mean/Med/Gauss)", 1, 31, 3, step=2)
+        add_slider(s3, "Hệ số Sigma (Gauss)", 0, 10, 1, step=0.5)
 
-        # Gauss
-        section5 = tk.LabelFrame(parent, text="Làm trơn ảnh (lọc Gauss)", bg="#FAD4A7", font=("Arial", 9, "bold"))
-        section5.pack(fill="x", padx=5, pady=5)
-        add_slider(section5, "Kích thước lọc (Gauss)", 1, 15, 3, step=2)
-        add_slider(section5, "Hệ số Sigma", 0, 10, 1)
-
-        # Median
-        section6 = tk.LabelFrame(parent, text="Làm trơn ảnh (lọc trung vị)", bg="#F7A6D0", font=("Arial", 9, "bold"))
-        section6.pack(fill="x", padx=5, pady=5)
-        add_slider(section6, "Kích thước lọc (Median)", 1, 15, 3, step=2)
+        # === CỘT 2: CÁC BÀI TẬP TUẦN 3 ===
+        #tk.Label(col2, text="--- TUẦN 3 (FREQUENCY) ---", bg="#f8f8f8", fg="red", font=("Arial", 10, "bold")).pack(pady=5)
         
-        # Histogram (Chỉ hiện text thông báo)
-        section7 = tk.LabelFrame(parent, text="Cân bằng sáng dùng Histogram", bg="#B7E3B0", font=("Arial", 9, "bold"))
-        section7.pack(fill="x", padx=5, pady=5)
-        tk.Label(section7, text="* Tự động cân bằng (Không tham số)", bg="#B7E3B0", fg="#333", anchor="w").pack(padx=5, pady=5)
+        s4 = tk.LabelFrame(col2, text="Tham số lọc Tần Số", bg="#FFFACD", font=("Arial", 9, "bold"))
+        s4.pack(fill="x", padx=5, pady=5)
+        add_slider(s4, "Tần số cắt (D0)", 1, 200, 30)
+        add_slider(s4, "Bậc bộ lọc (n - Butterworth)", 1, 10, 2)
 
-        # Khoảng trống dưới cùng để scroll được hết
-        tk.Frame(parent, height=20, bg="#f8f8f8").pack()
+        # HW3-1: Lowpass -> Highpass
+        hw1 = tk.LabelFrame(col2, text="Gaussian LP + HP", bg="#E0F7FA")
+        hw1.pack(fill="x", padx=5, pady=5)
+        tk.Button(hw1, text="Chạy HW3-1 (D0=25)", command=self.run_hw3_1, bg="white").pack(fill="x", padx=5, pady=2)
+        self.lbl_time1 = tk.Label(hw1, text="Time: -- ms", bg="#E0F7FA", font=("Arial", 8))
+        self.lbl_time1.pack()
+
+        # HW3-2: Highpass n lần
+        hw2 = tk.LabelFrame(col2, text="Highpass n lần", bg="#E0F7FA")
+        hw2.pack(fill="x", padx=5, pady=5)
+        self.passes_var = tk.IntVar(value=1)
+        tk.Radiobutton(hw2, text="1 lần", variable=self.passes_var, value=1, bg="#E0F7FA").pack(anchor="w", padx=5)
+        tk.Radiobutton(hw2, text="10 lần", variable=self.passes_var, value=10, bg="#E0F7FA").pack(anchor="w", padx=5)
+        tk.Radiobutton(hw2, text="100 lần", variable=self.passes_var, value=100, bg="#E0F7FA").pack(anchor="w", padx=5)
+        tk.Button(hw2, text="Chạy HW3-2 (D0=30)", command=self.run_hw3_2, bg="white").pack(fill="x", padx=5, pady=2)
+        self.lbl_time2 = tk.Label(hw2, text="Time: -- ms", bg="#E0F7FA", font=("Arial", 8))
+        self.lbl_time2.pack()
+
+        # Benchmark
+        tk.Button(col2, text="So sánh Spatial vs Freq", command=self.run_benchmark, bg="#FFCC80", font=("Arial", 9, "bold")).pack(fill="x", padx=5, pady=10)
+        self.lbl_bench = tk.Label(col2, text="", bg="#f8f8f8", justify="left", fg="blue")
+        self.lbl_bench.pack()
+
+        # Khoảng trống dưới cùng
+        tk.Frame(parent, height=50, bg="#f8f8f8").pack()
 
     # ---------- Hàm xử lý ảnh ----------
     def open_image(self):
         filepath = filedialog.askopenfilename(title="Chọn ảnh", filetypes=[("Image Files", "*.jpg *.png *.jpeg *.bmp")])
         if filepath:
-            # Đọc ảnh
             self.original_image = cv2.imread(filepath)
-            if self.original_image is None:
-                print("Lỗi: Không đọc được ảnh!")
-                return
-            
-            # Reset hiển thị
+            if self.original_image is None: return
             self.display_image(self.original_image, self.left_label)
             self.processed_image = None
             self.right_label.configure(image='')
-            self.right_label.image = None
 
     def display_image(self, img, label_widget):
         if img is None: return
-        # Convert BGR (OpenCV) to RGB (PIL)
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        # Convert BGR -> RGB
+        if len(img.shape) == 2: # Ảnh xám
+            img_rgb = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+        else:
+            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            
         img_pil = Image.fromarray(img_rgb)
-        
-        # Resize giữ tỷ lệ (thumbnail) để vừa khung 480x480
-        img_pil.thumbnail((480, 480)) 
+        img_pil.thumbnail((500, 500)) 
         imgtk = ImageTk.PhotoImage(img_pil)
-        
-        # Giữ tham chiếu để không bị garbage collection thu hồi
         label_widget.imgtk = imgtk 
         label_widget.configure(image=imgtk)
 
     def update_image(self):
-        if self.original_image is None:
-            return
+        if self.original_image is None: return
 
         method = self.method_var.get()
         img = self.original_image.copy()
 
-        # Lấy giá trị slider
+        # Lấy tham số chung
         c = self.params["Hệ số C (Log)"].get()
         gamma = self.params["Gamma"].get()
         high = int(self.params["Hệ số Cao (r2)"].get())
         low = int(self.params["Hệ số Thấp (r1)"].get())
-        
-        # Logic bảo vệ: low luôn < high
-        if low >= high:
-            low = high - 1 if high > 0 else 0
+        if low >= high: low = high - 1 if high > 0 else 0
 
-        # Kích thước kernel phải là số lẻ
-        mean_size = int(self.params["Kích thước lọc (Mean)"].get())
-        if mean_size % 2 == 0: mean_size += 1
+        ksize = int(self.params["Kích thước lọc (Mean/Med/Gauss)"].get())
+        if ksize % 2 == 0: ksize += 1
+        sigma = self.params["Hệ số Sigma (Gauss)"].get()
         
-        gauss_size = int(self.params["Kích thước lọc (Gauss)"].get())
-        if gauss_size % 2 == 0: gauss_size += 1
-            
-        sigma = self.params["Hệ số Sigma"].get()
-        
-        median_size = int(self.params["Kích thước lọc (Median)"].get())
-        if median_size % 2 == 0: median_size += 1
+        # Tham số tần số
+        d0 = int(self.params["Tần số cắt (D0)"].get())
+        n_order = int(self.params["Bậc bộ lọc (n - Butterworth)"].get())
 
         # --- Router xử lý ---
-        if method == "Negative image":
-            img = trans.negative(img)
-            
-        elif method == "Biến đổi Log":
-            img = trans.log_transform(img, c)
-            
-        elif method == "Biến đổi Piecewise-Linear":
-            img = trans.piecewise_linear(img, r1=low, r2=high)
-            
-        elif method == "Biến đổi Gamma":
-            img = trans.gamma_transform(img, gamma)
-            
-        elif method == "Làm trơn ảnh (lọc trung bình)":
-            img = ftr.mean_filter(img, mean_size)
-            
-        elif method == "Làm trơn ảnh (lọc Gauss)":
-            img = ftr.gaussian_filter(img, gauss_size, sigma)
-            
-        elif method == "Làm trơn ảnh (lọc trung vị)":
-            img = ftr.median_filter(img, median_size)
-            
-        elif method == "Cân bằng sáng dùng Histogram":
-            img = hist.equalize_histogram(img)
-            
-        elif method == "Phát hiện biên (Sobel)":
-            img = ftr.sobel_filter(img)
-            
-        elif method == "Phát hiện biên (Laplacian)":
-            img = ftr.laplacian_filter(img)
+        if method == "Negative image": img = trans.negative(img)
+        elif method == "Biến đổi Log": img = trans.log_transform(img, c)
+        elif method == "Biến đổi Piecewise-Linear": img = trans.piecewise_linear(img, r1=low, r2=high)
+        elif method == "Biến đổi Gamma": img = trans.gamma_transform(img, gamma)
+        
+        elif method == "Làm trơn ảnh (lọc trung bình)": img = ftr.mean_filter(img, ksize)
+        elif method == "Làm trơn ảnh (lọc Gauss)": img = ftr.gaussian_filter(img, ksize, sigma)
+        elif method == "Làm trơn ảnh (lọc trung vị)": img = ftr.median_filter(img, ksize)
+        elif method == "Cân bằng sáng dùng Histogram": img = hist.equalize_histogram(img)
+        elif method == "Phát hiện biên (Sobel)": img = ftr.sobel_filter(img)
+        elif method == "Phát hiện biên (Laplacian)": img = ftr.laplacian_filter(img)
+
+        # --- XỬ LÝ MIỀN TẦN SỐ (GỌI FREQUENCY.PY) ---
+        elif method == "Lọc Ideal Lowpass (Làm mờ)": 
+            img = freq.apply_filter(img, d0, 'ideal_lp')
+        elif method == "Lọc Ideal Highpass (Làm nét)": 
+            img = freq.apply_filter(img, d0, 'ideal_hp')
+        elif method == "Lọc Butterworth Lowpass": 
+            img = freq.apply_filter(img, d0, 'butter_lp', n_order)
+        elif method == "Lọc Butterworth Highpass": 
+            img = freq.apply_filter(img, d0, 'butter_hp', n_order)
+        elif method == "Lọc Gaussian Lowpass": 
+            img = freq.apply_filter(img, d0, 'gauss_lp')
+        elif method == "Lọc Gaussian Highpass": 
+            img = freq.apply_filter(img, d0, 'gauss_hp')
 
         self.processed_image = img
         self.display_image(self.processed_image, self.right_label)
 
+    # --- CÁC HÀM CHẠY BÀI TẬP HW3 ---
+    def run_hw3_1(self):
+        if self.original_image is None: return
+        # Bài 1: Lowpass -> Highpass (D0=25)
+        img_out, t_ms = freq.apply_filter_sequence(self.original_image, d0=25)
+        self.processed_image = img_out
+        self.display_image(img_out, self.right_label)
+        self.lbl_time1.config(text=f"Time: {t_ms:.2f} ms")
+
+    def run_hw3_2(self):
+        if self.original_image is None: return
+        # Bài 2: Highpass n lần (D0=30)
+        n = self.passes_var.get()
+        img_out, t_ms = freq.apply_multi_pass(self.original_image, d0=30, passes=n)
+        self.processed_image = img_out
+        self.display_image(img_out, self.right_label)
+        self.lbl_time2.config(text=f"Time: {t_ms:.2f} ms")
+
+    def run_benchmark(self):
+        if self.original_image is None: return
+        # So sánh tốc độ
+        ts, tf = freq.benchmark_spatial_vs_freq(self.original_image, ksize=15)
+        msg = f"Spatial (Conv): {ts:.2f} ms\nFrequency (FFT): {tf:.2f} ms"
+        if tf < ts: msg += "\n=> FFT nhanh hơn!"
+        else: msg += "\n=> Spatial nhanh hơn!"
+        self.lbl_bench.config(text=msg)
+
     def save_image(self):
-        if self.processed_image is None:
-            return
-        filepath = filedialog.asksaveasfilename(defaultextension=".png",
-                                                filetypes=[("PNG files", "*.png"), ("JPEG files", "*.jpg")])
+        if self.processed_image is None: return
+        filepath = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG files", "*.png"), ("JPEG files", "*.jpg")])
         if filepath:
             cv2.imwrite(filepath, self.processed_image)
-            print(f"Ảnh đã được lưu tại: {filepath}")
+            print(f"Đã lưu: {filepath}")
 
 if __name__ == "__main__":
     root = tk.Tk()
