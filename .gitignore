@@ -1,0 +1,50 @@
+.venv/
+nop
+digital-image-processing
+__pycache__/
+
+# ------------------------
+# Python cache / build
+# ------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environment
+venv/
+.env/
+.venv/
+
+# Editor folders
+.vscode/
+.idea/
+
+# Compiled C extensions
+*.egg-info/
+*.egg/
+dist/
+build/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Logs
+*.log
+
+# Temporary or test files
+tmp/
+temp/
+*.tmp
+
+# OS files
+.DS_Store
+
+# Image outputs (optional)
+outputs/
+**/outputs/
+
+# Backup files
+*~
+*.bak
